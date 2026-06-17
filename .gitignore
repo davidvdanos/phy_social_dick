@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.cache/
+~$*
+Powerpoints των διαλέξεων/
+*.pdf
+*.gdoc
+Ύλη Κοινωνική Νόηση.docx
+page_1.html
