@@ -1410,6 +1410,17 @@ def source_panel(topic: dict[str, Any], slides_by_lecture: dict[int, list[dict[s
 
 def render_notes(topic: dict[str, Any]) -> str:
     sections = []
+    study_opening = f"""
+    <section class="study-method" id="how-to-study">
+      <p class="eyebrow">Σημειώσεις για διάβασμα</p>
+      <h2>Πώς να διαβάσεις την ενότητα</h2>
+      <ul>
+        <li>Πρώτα μάθε τον βασικό ορισμό κάθε έννοιας και ένα καθαρό παράδειγμα εφαρμογής.</li>
+        <li>Μετά σύνδεσε την έννοια με την κριτική της: ποια παραδοχή κάνει, τι αφήνει έξω και ποια κοινωνική συνέπεια έχει.</li>
+        <li>Στο τέλος κάνε τα πολλαπλής χωρίς να ανοίγεις την απάντηση. Αν κάνεις λάθος, γύρνα στην αντίστοιχη κάρτα έννοιας.</li>
+      </ul>
+    </section>
+    """
     for section in topic["sections"]:
         section_id = slug_id(section["heading"])
         paragraphs = "".join(f"<p>{h(paragraph)}</p>" for paragraph in section["paragraphs"])
@@ -1424,7 +1435,65 @@ def render_notes(topic: dict[str, Any]) -> str:
             </section>
             """
         )
-    return "\n".join(sections)
+    return study_opening + "\n".join(sections)
+
+
+def render_study_cards(topic: dict[str, Any]) -> str:
+    cards = []
+    for concept in topic["concepts"]:
+        cards.append(
+            f"""
+            <article class="concept-card">
+              <h3>{h(concept["name"])}</h3>
+              <dl>
+                <dt>Τι να θυμάμαι</dt>
+                <dd>{h(concept["claim"])}</dd>
+                <dt>Πώς το χρησιμοποιώ σε απάντηση</dt>
+                <dd>{h(concept["application"])}</dd>
+                <dt>Κριτική ματιά</dt>
+                <dd>{h(concept["critique"])}</dd>
+                <dt>Μην το γράψεις έτσι</dt>
+                <dd>{h(concept["misread"])}</dd>
+              </dl>
+              <p class="concept-source">{h(concept["source"])}</p>
+            </article>
+            """
+        )
+    return f"""
+    <section class="concept-section" id="concept-cards">
+      <p class="eyebrow">Κάρτες έννοιας</p>
+      <h2>Τι πρέπει να ξέρεις να γράψεις</h2>
+      <p>Οι κάρτες είναι φτιαγμένες για επανάληψη: ορισμός, εφαρμογή, κριτική και η συνηθισμένη παγίδα της έννοιας.</p>
+      <div class="concept-grid">{''.join(cards)}</div>
+    </section>
+    """
+
+
+def render_exam_review(topic: dict[str, Any]) -> str:
+    core_items = "".join(
+        f"<li>Να εξηγείς το/την <strong>{h(concept['name'])}</strong> με παράδειγμα και όχι μόνο με ορισμό.</li>"
+        for concept in topic["concepts"][:8]
+    )
+    trap_items = "".join(
+        f"<li>{h(concept['misread'])}</li>"
+        for concept in topic["concepts"][:6]
+    )
+    return f"""
+    <section class="exam-review" id="quick-review">
+      <p class="eyebrow">Γρήγορη επανάληψη</p>
+      <h2>Πριν κλείσεις την ενότητα</h2>
+      <div class="review-columns">
+        <div>
+          <h3>Πρέπει να μπορείς</h3>
+          <ul>{core_items}</ul>
+        </div>
+        <div>
+          <h3>Συχνές παγίδες</h3>
+          <ul>{trap_items}</ul>
+        </div>
+      </div>
+    </section>
+    """
 
 
 def render_slide_outline(topic: dict[str, Any], slides_by_lecture: dict[int, list[dict[str, Any]]]) -> str:
@@ -1462,6 +1531,7 @@ def render_slide_outline(topic: dict[str, Any], slides_by_lecture: dict[int, lis
 def make_questions(topic: dict[str, Any]) -> list[dict[str, Any]]:
     templates = [
         (
+            "understanding",
             "Σε σενάριο όπου {context}, ποια απάντηση δείχνει την πιο κριτική κατανόηση του θέματος;",
             "claim",
             [
@@ -1471,6 +1541,7 @@ def make_questions(topic: dict[str, Any]) -> list[dict[str, Any]]:
             ],
         ),
         (
+            "application",
             "Ποια εφαρμογή του/της {name} θα απέφευγε την πιο συνηθισμένη εξεταστική παγίδα;",
             "application",
             [
@@ -1480,6 +1551,7 @@ def make_questions(topic: dict[str, Any]) -> list[dict[str, Any]]:
             ],
         ),
         (
+            "critique",
             "Ποια κριτική ερώτηση πρέπει να τεθεί όταν χρησιμοποιούμε την έννοια {name};",
             "critique",
             [
@@ -1489,6 +1561,7 @@ def make_questions(topic: dict[str, Any]) -> list[dict[str, Any]]:
             ],
         ),
         (
+            "method",
             "Αν έπρεπε να σχεδιαστεί μικρή έρευνα για το/την {name}, ποια επιλογή είναι πιο ισχυρή;",
             "method",
             [
@@ -1500,8 +1573,11 @@ def make_questions(topic: dict[str, Any]) -> list[dict[str, Any]]:
     ]
     questions: list[dict[str, Any]] = []
     counter = 1
-    for seed in topic["concepts"]:
-        for template_index, (stem_template, correct_key, distractor_templates) in enumerate(templates):
+    method_bonus = 2 if len(topic["concepts"]) > 6 else 1
+    for seed_index, seed in enumerate(topic["concepts"]):
+        for template_index, (kind, stem_template, correct_key, distractor_templates) in enumerate(templates):
+            if kind == "method" and seed_index >= method_bonus:
+                continue
             correct = seed[correct_key]
             distractors = [
                 template.format(**seed)
@@ -1574,12 +1650,17 @@ def render_topic_page(
       <aside class="toc">
         <strong>Περιεχόμενα</strong>
         <a href="#sources">Πηγές</a>
+        <a href="#how-to-study">Πώς διαβάζεται</a>
         {''.join(f'<a href="#{h(slug_id(section["heading"]))}">{h(section["heading"])}</a>' for section in topic["sections"])}
+        <a href="#concept-cards">Κάρτες έννοιας</a>
+        <a href="#quick-review">Γρήγορη επανάληψη</a>
         <a href="#slides">Διαφάνειες</a>
         <a href="#quiz">Πολλαπλής</a>
       </aside>
       <div class="study-content">
         {render_notes(topic)}
+        {render_study_cards(topic)}
+        {render_exam_review(topic)}
         {render_slide_outline(topic, slides_by_lecture)}
         <section id="quiz" class="quiz-section">
           <p class="eyebrow">Εξάσκηση</p>
@@ -1699,12 +1780,25 @@ def search_index(
             " ".join(section["paragraphs"] + section.get("bullets", []))
             for section in topic["sections"]
         )
+        concept_text = " ".join(
+            " ".join(
+                [
+                    concept["name"],
+                    concept["claim"],
+                    concept["application"],
+                    concept["critique"],
+                    concept["misread"],
+                    concept["source"],
+                ]
+            )
+            for concept in topic["concepts"]
+        )
         quiz_text = " ".join(question["question"] for question in all_questions[topic["slug"]])
         rows.append(
             {
                 "title": topic["title"],
                 "url": f"topics/{topic['slug']}.html",
-                "text": clean_text(f"{topic['summary']} {notes_text} {quiz_text} {' '.join(lecture_text)}"),
+                "text": clean_text(f"{topic['summary']} {notes_text} {concept_text} {quiz_text} {' '.join(lecture_text)}"),
             }
         )
     return rows
@@ -1780,6 +1874,36 @@ def add_bullet(doc: Any, text: str) -> None:
     paragraph.add_run(text)
 
 
+def add_study_cards_to_doc(doc: Any, topic: dict[str, Any]) -> None:
+    doc.add_heading("Κάρτες διαβάσματος", level=1)
+    intro = doc.add_paragraph(
+        "Χρησιμοποίησε τις κάρτες για γρήγορη επανάληψη: πρώτα ο πυρήνας της έννοιας, μετά εφαρμογή, κριτική και παγίδα."
+    )
+    intro.paragraph_format.space_after = Pt(8)
+    for concept in topic["concepts"]:
+        doc.add_heading(concept["name"], level=2)
+        for label, key in [
+            ("Τι να θυμάμαι", "claim"),
+            ("Πώς το χρησιμοποιώ σε απάντηση", "application"),
+            ("Κριτική ματιά", "critique"),
+            ("Μην το γράψεις έτσι", "misread"),
+        ]:
+            paragraph = doc.add_paragraph()
+            run = paragraph.add_run(f"{label}: ")
+            run.bold = True
+            paragraph.add_run(concept[key])
+        source = doc.add_paragraph()
+        source_run = source.add_run(f"Πηγή: {concept['source']}")
+        set_font(source_run, size=9, color="555555")
+    doc.add_heading("Γρήγορη επανάληψη πριν το quiz", level=1)
+    doc.add_paragraph("Πρέπει να μπορείς:")
+    for concept in topic["concepts"][:8]:
+        add_bullet(doc, f"Να εξηγείς το/την {concept['name']} με παράδειγμα και όχι μόνο με ορισμό.")
+    doc.add_paragraph("Συχνές παγίδες:")
+    for concept in topic["concepts"][:6]:
+        add_bullet(doc, concept["misread"])
+
+
 def write_topic_docx(
     topic: dict[str, Any],
     slides_by_lecture: dict[int, list[dict[str, Any]]],
@@ -1802,6 +1926,10 @@ def write_topic_docx(
             doc,
             f"Dickerson: {lecture.dickerson_pdf}, σελίδες βιβλίου {lecture.dickerson_pages}.",
         )
+    doc.add_heading("Πώς να διαβάσεις την ενότητα", level=1)
+    add_bullet(doc, "Πρώτα μάθε τον βασικό ορισμό κάθε έννοιας και ένα καθαρό παράδειγμα εφαρμογής.")
+    add_bullet(doc, "Μετά σύνδεσε την έννοια με την κριτική της: ποια παραδοχή κάνει, τι αφήνει έξω και ποια κοινωνική συνέπεια έχει.")
+    add_bullet(doc, "Στο τέλος κάνε τα πολλαπλής χωρίς να κοιτάς την απάντηση και γύρνα στην αντίστοιχη κάρτα έννοιας όπου δυσκολεύτηκες.")
     doc.add_heading("Σημειώσεις", level=1)
     for section in topic["sections"]:
         doc.add_heading(section["heading"], level=2)
@@ -1809,6 +1937,7 @@ def write_topic_docx(
             doc.add_paragraph(paragraph_text)
         for item in section.get("bullets", []):
             add_bullet(doc, item)
+    add_study_cards_to_doc(doc, topic)
     doc.add_heading("Χάρτης διαφανειών", level=1)
     for lecture_no in topic["lectures"]:
         lecture = LECTURES[lecture_no]
