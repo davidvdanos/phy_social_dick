@@ -1436,8 +1436,8 @@ def render_notes(topic: dict[str, Any]) -> str:
         """
         <section class="note-section" id="analytical-notes">
           <p class="eyebrow">Αναλυτικές σημειώσεις</p>
-          <h2>Ροή μαθήματος</h2>
-          <p>Οι παρακάτω σημειώσεις κρατούν τη λογική των διαλέξεων: πρώτα το βασικό πλαίσιο, μετά τα επιμέρους θεωρητικά σημεία και στο τέλος η κριτική ανάγνωση.</p>
+          <h2>Σημειώσεις για διάβασμα</h2>
+          <p>Η ενότητα οργανώνει το υλικό σε κανονική μορφή μελέτης: ορισμοί, βασικές θεωρίες, ερευνητικά ευρήματα, διακρίσεις και κριτική ανάγνωση από τις διαφάνειες και το Dickerson.</p>
         </section>
         """
     )
@@ -1456,31 +1456,6 @@ def render_notes(topic: dict[str, Any]) -> str:
             """
         )
     return "\n".join(sections)
-
-
-def render_concept_notes(topic: dict[str, Any]) -> str:
-    notes = []
-    for index, concept in enumerate(topic["concepts"], 1):
-        notes.append(
-            f"""
-            <section class="concept-note" id="concept-{h(slug_id(concept["name"]))}">
-              <h3>{index}. {h(concept["name"])}</h3>
-              <p><strong>Κεντρική ιδέα:</strong> {h(study_text(concept["claim"]))}</p>
-              <p><strong>Εφαρμογή της έννοιας:</strong> Σε περίπτωση όπου {h(study_text(concept["context"]))}, {h(study_text(concept["application"]))}</p>
-              <p><strong>Κριτική παρατήρηση:</strong> {h(study_text(concept["critique"]))}</p>
-              <p><strong>Εννοιολογική διάκριση:</strong> {h(study_text(concept["misread"]))}</p>
-              <p class="concept-source">{h(concept["source"])}</p>
-            </section>
-            """
-        )
-    return f"""
-    <section class="concept-notes" id="concept-notes">
-      <p class="eyebrow">Βασικές έννοιες</p>
-      <h2>Σημειώσεις εννοιών</h2>
-      <p>Οι έννοιες οργανώνονται με βάση το περιεχόμενο των διαφανειών και τις στοχευμένες συμπληρώσεις από το Dickerson: κεντρική ιδέα, εφαρμογή, κριτική παρατήρηση και βασική εννοιολογική διάκριση.</p>
-      <div class="concept-note-list">{''.join(notes)}</div>
-    </section>
-    """
 
 
 def render_slide_outline(topic: dict[str, Any], slides_by_lecture: dict[int, list[dict[str, Any]]]) -> str:
@@ -1636,12 +1611,10 @@ def render_topic_page(
       <aside class="toc">
         <strong>Περιεχόμενα</strong>
         <a href="#sources">Πηγές</a>
-        <a href="#concept-notes">Βασικές έννοιες</a>
         {''.join(f'<a href="#{h(slug_id(section["heading"]))}">{h(section["heading"])}</a>' for section in topic["sections"])}
         <a href="#slides">Διαφάνειες</a>
       </aside>
       <div class="study-content">
-        {render_concept_notes(topic)}
         {render_notes(topic)}
         {render_slide_outline(topic, slides_by_lecture)}
       </div>
@@ -1849,32 +1822,6 @@ def add_bullet(doc: Any, text: str) -> None:
     paragraph.add_run(text)
 
 
-def add_concept_notes_to_doc(doc: Any, topic: dict[str, Any]) -> None:
-    doc.add_heading("Βασικές έννοιες", level=1)
-    intro = doc.add_paragraph(
-        "Οι έννοιες είναι δομημένες για κανονικό διάβασμα: κεντρική ιδέα, εφαρμογή, κριτική παρατήρηση και βασική εννοιολογική διάκριση."
-    )
-    intro.paragraph_format.space_after = Pt(8)
-    for index, concept in enumerate(topic["concepts"], 1):
-        doc.add_heading(f"{index}. {concept['name']}", level=2)
-        for label, key in [
-            ("Κεντρική ιδέα", "claim"),
-            ("Εφαρμογή της έννοιας", "application"),
-            ("Κριτική παρατήρηση", "critique"),
-            ("Εννοιολογική διάκριση", "misread"),
-        ]:
-            paragraph = doc.add_paragraph()
-            run = paragraph.add_run(f"{label}: ")
-            run.bold = True
-            if key == "application":
-                paragraph.add_run(study_text(f"Σε περίπτωση όπου {concept['context']}, {concept[key]}"))
-            else:
-                paragraph.add_run(study_text(concept[key]))
-        source = doc.add_paragraph()
-        source_run = source.add_run(f"Πηγή: {concept['source']}")
-        set_font(source_run, size=9, color="555555")
-
-
 def write_topic_docx(
     topic: dict[str, Any],
     slides_by_lecture: dict[int, list[dict[str, Any]]],
@@ -1897,7 +1844,6 @@ def write_topic_docx(
             doc,
             f"Dickerson: {lecture.dickerson_pdf}, σελίδες βιβλίου {lecture.dickerson_pages}.",
         )
-    add_concept_notes_to_doc(doc, topic)
     doc.add_heading("Αναλυτικές σημειώσεις", level=1)
     for section in topic["sections"]:
         doc.add_heading(section["heading"], level=2)
